@@ -13,7 +13,7 @@
 | `python3 tests/smoke_http.py --binary target/release/files-reader-mcp` | 真实回环 HTTP 测试通过 |
 | `git check-ignore config.toml target/example` | 本地配置及构建产物均被忽略 |
 
-HTTP 测试实际启动服务并绑定操作系统分配的回环端口，完成 `initialize`、18 个工具枚举、文本读取（缩进/CRLF 保留）和越界路径拒绝，随后停止服务。未修改全局 Codex 配置，未部署为常驻后台服务。
+HTTP 测试实际启动服务并绑定操作系统分配的回环端口，完成 `initialize`、18 个工具枚举、文本读取（缩进/CRLF 保留）和越界路径拒绝，随后停止服务。未修改客户端配置，未部署为常驻后台服务。
 
 ## 覆盖内容
 

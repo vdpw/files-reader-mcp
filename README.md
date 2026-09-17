@@ -1,6 +1,6 @@
 # files-reader-mcp
 
-Rust 编写的本地只读文本与 Git 阅读 MCP 服务。通过 Streamable HTTP 连接，默认监听 `127.0.0.1:3210/mcp`；拒绝非回环监听地址。
+Rust 编写的本地只读文本与 Git 阅读 MCP 服务，供支持 MCP 的 LLM 客户端调用。通过 Streamable HTTP 连接，默认监听 `127.0.0.1:3210/mcp`；拒绝非回环监听地址。
 
 授权根目录可以是普通目录，下面包含多个独立仓库。文件操作使用 `root + path`；Git 操作使用 `root + repo` 选择子仓库，再用仓库相对路径定位文件。不会向授权根之外发现仓库。
 
@@ -35,24 +35,17 @@ path = "/absolute/path/to/notes"
 
 例如 `projects/service-a/.git` 和 `projects/service-b/.git` 是两个独立仓库，则 `git_log` 分别使用 `{"root":"projects","repo":"service-a"}` 和 `{"root":"projects","repo":"service-b"}`。`projects` 本身不需要 `.git`。根目录本身是仓库时，`repo` 使用空字符串。
 
-## Codex 连接
+## MCP 客户端连接
 
-先启动服务，再执行以下命令添加连接：
+先启动服务，再在支持 Streamable HTTP 的 LLM 客户端中配置服务地址：
 
-```sh
-codex mcp add files-reader --url http://127.0.0.1:3210/mcp
+```text
+http://127.0.0.1:3210/mcp
 ```
 
-等价的 Codex 配置片段：
+客户端完成 MCP 初始化后，通过 `tools/list` 获取工具及参数定义，通过 `tools/call` 调用文件和 Git 阅读工具。
 
-```toml
-[mcp_servers.files-reader]
-url = "http://127.0.0.1:3210/mcp"
-# 服务端启用 token_env 时，Codex 进程也需要相同环境变量：
-# bearer_token_env_var = "FILES_READER_MCP_TOKEN"
-```
-
-接入参数已对照本机 `codex mcp add --help` 和 [OpenAI 官方 MCP 文档](https://developers.openai.com/codex/mcp)。本项目不自动修改 Codex 配置。
+服务端启用 `token_env` 时，客户端需要在请求中发送 `Authorization: Bearer <token>`，其中 token 与服务端环境变量的值一致。具体配置方式由客户端决定。
 
 请使用与 `listen` 完全相同的 IP 和端口访问。HTTP `Host` 必须匹配，存在的 `Origin` 必须为同源地址；例如绑定 `127.0.0.1` 时不接受 `localhost` 别名。`listen = "[::1]:3210"` 可使用 IPv6 回环。
 
