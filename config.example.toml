@@ -1,0 +1,13 @@
+# Copy to config.toml and adjust absolute paths. No wildcard or environment expansion.
+listen = "127.0.0.1:3210"
+# Optional: name of an environment variable containing a bearer token.
+# token_env = "FILES_READER_MCP_TOKEN"
+
+[[roots]]
+name = "projects"
+path = "/absolute/path/to/projects"
+
+# Optional second root, which can contain plain text without any Git repository.
+# [[roots]]
+# name = "notes"
+# path = "/absolute/path/to/notes"
