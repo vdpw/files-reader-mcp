@@ -38,12 +38,15 @@ with tempfile.TemporaryDirectory(prefix='files-reader-http-') as tmp:
         assert initialized['serverInfo']['name'] == 'files-reader-mcp'
         listing = rpc('tools/list', {})
         assert len(listing['tools']) == 18
+        assert all(tool.get('outputSchema', {}).get('type') == 'object' for tool in listing['tools'])
         read = rpc('tools/call', {'name': 'read_file', 'arguments': {'root': 'sample', 'path': 'hello.txt'}})
         assert not read.get('isError'), read
         data = json.loads(read['content'][0]['text'])
+        assert read['structuredContent'] == data
         assert ''.join(row['text'] for row in data['lines']) == '  hello\r\nworld\n'
         denied = rpc('tools/call', {'name': 'read_file', 'arguments': {'root': 'sample', 'path': '../outside'}})
         assert denied.get('isError') is True
+        assert denied.get('structuredContent') is None
         print(json.dumps({'loopback_http': 'passed', 'initialize': 'passed', 'tools': 18, 'read_original_crlf': 'passed', 'traversal_denied': 'passed'}, indent=2))
     finally:
         process.send_signal(signal.SIGINT)

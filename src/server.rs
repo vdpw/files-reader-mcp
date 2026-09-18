@@ -3,6 +3,7 @@ use crate::{
     fs::{self, Files, SearchOptions},
     git::{DiffScope, store::Store},
     output::{self, Limits},
+    output_schema as schema,
     text::{self, ReadOptions},
 };
 use anyhow::{Result, ensure};
@@ -304,9 +305,7 @@ impl ReaderServer {
         })
         .await
         {
-            Ok(Ok(value)) => CallToolResult::success(vec![ContentBlock::text(
-                serde_json::to_string(&value).unwrap(),
-            )]),
+            Ok(Ok(value)) => CallToolResult::structured(value),
             Ok(Err(e)) => CallToolResult::error(vec![ContentBlock::text(format!("{e:#}"))]),
             Err(_) => CallToolResult::error(vec![ContentBlock::text("INTERNAL_WORKER_ERROR")]),
         }
@@ -315,6 +314,7 @@ impl ReaderServer {
 #[tool_router]
 impl ReaderServer {
     #[tool(
+        output_schema = schema::roots(),
         description = "List configured authorized roots. Roots may be ordinary directories containing many Git repositories.",
         annotations(
             read_only_hint = true,
@@ -328,6 +328,7 @@ impl ReaderServer {
         }).await
     }
     #[tool(
+        output_schema = schema::file_info(),
         description = "Get basic metadata for a regular file or directory; no content extraction.",
         annotations(
             read_only_hint = true,
@@ -340,6 +341,7 @@ impl ReaderServer {
             .await
     }
     #[tool(
+        output_schema = schema::list_directory(),
         description = "Browse a directory with bounded depth and pagination. Gaps report directories or entries that were not inspected.",
         annotations(
             read_only_hint = true,
@@ -356,6 +358,7 @@ impl ReaderServer {
         }).await
     }
     #[tool(
+        output_schema = schema::find_files(),
         description = "Find filenames, paths, and globs, including hidden files and gitignored files. Discovery gaps are explicit result items.",
         annotations(
             read_only_hint = true,
@@ -375,6 +378,7 @@ impl ReaderServer {
         }).await
     }
     #[tool(
+        output_schema = schema::read(),
         description = "Read full text, head, tail, or inclusive line range. Bounded results preserve indentation and newline characters. Continue with next_cursor, including within long lines.",
         annotations(
             read_only_hint = true,
@@ -400,6 +404,7 @@ impl ReaderServer {
         .await
     }
     #[tool(
+        output_schema = schema::search(),
         description = "Search literal text or regex with context and path glob. Hidden text is included. not_searched and discovery gaps must never be interpreted as no matches.",
         annotations(
             read_only_hint = true,
@@ -442,6 +447,7 @@ impl ReaderServer {
         .await
     }
     #[tool(
+        output_schema = schema::git_refs(),
         description = "List already-local branches, tags, remote-tracking refs, and HEAD. Never fetches.",
         annotations(
             read_only_hint = true,
@@ -465,6 +471,7 @@ impl ReaderServer {
         .await
     }
     #[tool(
+        output_schema = schema::git_resolve(),
         description = "Resolve a local revision to an object and peeled object. Supports HEAD, local refs, object IDs, and ancestry suffixes ~N or ^N.",
         annotations(
             read_only_hint = true,
@@ -479,6 +486,7 @@ impl ReaderServer {
         }).await
     }
     #[tool(
+        output_schema = schema::git_tree(),
         description = "List a local revision file tree, including modes that identify symlinks and submodules, whose contents are never read.",
         annotations(
             read_only_hint = true,
@@ -494,6 +502,7 @@ impl ReaderServer {
         }).await
     }
     #[tool(
+        output_schema = schema::read(),
         description = "Read a historical regular text blob with original line numbers and bounded continuation. Refuses binary, media, symlinks, and gitlinks.",
         annotations(
             read_only_hint = true,
@@ -521,6 +530,7 @@ impl ReaderServer {
         .await
     }
     #[tool(
+        output_schema = schema::search(),
         description = "Search regular text blobs in a local revision, with regex, path glob, context, and explicit coverage gaps.",
         annotations(
             read_only_hint = true,
@@ -556,6 +566,7 @@ impl ReaderServer {
         .await
     }
     #[tool(
+        output_schema = schema::git_status(),
         description = "Read staged/worktree status using raw file bytes. Includes ignored untracked files; reports unreadable files instead of declaring them clean. No index writes.",
         annotations(
             read_only_hint = true,
@@ -577,6 +588,7 @@ impl ReaderServer {
         .await
     }
     #[tool(
+        output_schema = schema::git_diff(),
         description = "Read bounded text patches for index vs worktree, HEAD vs index, or two local revisions. Binary/media patches are omitted explicitly, never encoded. No external diff or textconv.",
         annotations(
             read_only_hint = true,
@@ -592,6 +604,7 @@ impl ReaderServer {
         }).await
     }
     #[tool(
+        output_schema = schema::git_log(),
         description = "Read local commit history and messages in breadth-first ancestry order. Missing objects fail without networking. Commits are returned as metadata plus original message lines.",
         annotations(
             read_only_hint = true,
@@ -611,6 +624,7 @@ impl ReaderServer {
         }).await
     }
     #[tool(
+        output_schema = schema::git_show(),
         description = "Read commit metadata, original message lines, and text patch relative to its first parent. Root commits show additions.",
         annotations(
             read_only_hint = true,
@@ -632,6 +646,7 @@ impl ReaderServer {
         }).await
     }
     #[tool(
+        output_schema = schema::git_blame(),
         description = "Trace each text line to a local commit, using first-parent history without rename/copy following. Provides current and original line numbers.",
         annotations(
             read_only_hint = true,
@@ -648,6 +663,7 @@ impl ReaderServer {
         }).await
     }
     #[tool(
+        output_schema = schema::git_merge_base(),
         description = "Find all best common ancestors of two local commits. Missing objects fail without fetching.",
         annotations(
             read_only_hint = true,
@@ -671,6 +687,7 @@ impl ReaderServer {
         .await
     }
     #[tool(
+        output_schema = schema::git_search_history(),
         description = "Search added/deleted text lines in first-parent change history by literal string or regex. Does not mean Git -S occurrence-count semantics. Excluded patches report not_searched.",
         annotations(
             read_only_hint = true,
