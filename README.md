@@ -15,7 +15,21 @@ cp config.example.toml config.toml
 ./target/release/files-reader-mcp --config config.toml
 ```
 
-`Ctrl-C` 停止服务。没有后台安装、自启动、文件写入工具或命令执行工具。运行时不依赖 Git 可执行程序；集成测试使用系统 Git 创建临时样本。
+`Ctrl-C` 停止前台服务。不提供文件写入工具或命令执行工具。运行时不依赖 Git 可执行程序；集成测试使用系统 Git 创建临时样本。
+
+本地后台管理脚本 `service.zsh` 需要 zsh 和 Python 3，使用独立进程会话及 `nohup`，关闭终端后服务继续运行；不设置开机自启动。脚本及 `.run/` 运行文件已加入 `.gitignore`，不会随仓库克隆分发。脚本从自身目录定位 release 二进制和 `config.toml`，可在任意工作目录调用：
+
+```sh
+./service.zsh start     # 后台启动；已运行时不会重复启动
+./service.zsh status    # 查看 PID、配置和日志路径
+./service.zsh logs      # 查看日志，Ctrl-C 只退出日志查看
+./service.zsh stop      # 发送 SIGINT，等待优雅退出
+./service.zsh restart   # 重启并重新读取配置
+./service.zsh build     # 更新代码后构建，再执行 restart
+./service.zsh rebuild   # 构建 release，成功后重启；构建失败保留当前服务
+```
+
+PID 和本次启动日志保存在 `.run/service.pid`、`.run/service.log`；每次启动会覆盖上一次日志。启用 `token_env` 时，先在调用脚本的终端导出对应环境变量。`start` 仅在二进制不存在时自动构建，代码更新后可执行 `rebuild`，或依次执行 `build` 和 `restart`。
 
 多个根目录的配置示例：
 
@@ -74,7 +88,9 @@ http://127.0.0.1:3210/mcp
 | `git_resolve` | 本地版本解析和 tag 剥离 |
 | `git_merge_base` | 两个版本的全部最佳共同祖先 |
 
-具体参数由 MCP `tools/list` JSON Schema 提供。主要调用示例：
+全部工具在 MCP `tools/list` 中提供 `inputSchema` 和 `outputSchema`，分别描述参数与成功结果。输出 Schema 包含字段类型、说明、必填项、可空字段及不同结果条目的结构（如搜索命中、未覆盖项和 Git 补丁）。成功调用通过 `structuredContent` 返回对应 JSON，同时在 `content[0].text` 保留相同 JSON 文本以兼容原有客户端；执行失败仍通过 `isError=true` 和文本错误返回，不适用成功结果的 Schema。
+
+主要调用示例：
 
 ```json
 {"name":"find_files","arguments":{"root":"projects","path":"service-a","name":"order","path_glob":"**/*.go"}}

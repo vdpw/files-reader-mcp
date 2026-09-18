@@ -525,6 +525,58 @@ async fn rpc(app: axum::Router, body: Value) -> (u16, Value) {
         serde_json::from_slice(&b).unwrap_or_else(|_| json!({"raw":String::from_utf8_lossy(&b)})),
     )
 }
+
+async fn output_schemas(
+    app: axum::Router,
+) -> std::collections::BTreeMap<String, jsonschema::Validator> {
+    let (status, listing) = rpc(
+        app,
+        json!({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}),
+    )
+    .await;
+    assert_eq!(status, 200);
+    let tools = listing["result"]["tools"].as_array().unwrap();
+    assert_eq!(tools.len(), 18);
+    tools
+        .iter()
+        .map(|tool| {
+            let name = tool["name"].as_str().unwrap();
+            let schema = &tool["outputSchema"];
+            assert_eq!(schema["type"], "object", "{name}");
+            assert!(
+                !schema["properties"].as_object().unwrap().is_empty(),
+                "{name}"
+            );
+            let validator =
+                jsonschema::validator_for(schema).unwrap_or_else(|e| panic!("{name}: {e}"));
+            // A generic unconstrained object would not help clients understand results.
+            assert!(!validator.is_valid(&json!({})), "{name}");
+            (name.to_owned(), validator)
+        })
+        .collect()
+}
+
+fn validate_output(
+    schemas: &std::collections::BTreeMap<String, jsonschema::Validator>,
+    name: &str,
+    result: &Value,
+) -> Value {
+    assert_eq!(result["isError"], false, "{name}: {result}");
+    let data = &result["structuredContent"];
+    assert!(data.is_object(), "{name}: missing structuredContent");
+    let text: Value = serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(
+        *data, text,
+        "{name}: structured and legacy results must agree"
+    );
+    let errors: Vec<_> = schemas[name]
+        .iter_errors(data)
+        .map(|e| format!("{}: {e}", e.instance_path))
+        .collect();
+    assert!(errors.is_empty(), "{name}: {errors:?}\n{data}");
+    data.clone()
+}
+
 #[tokio::test]
 async fn streamable_http_initialization_listing_and_call() {
     let t = TempDir::new().unwrap();
@@ -742,9 +794,10 @@ fn mode_only_worktree_change_is_reported() {
     );
 }
 #[tokio::test]
-async fn every_git_tool_is_callable_for_a_child_repository() {
+async fn every_tool_returns_structured_content_matching_its_output_schema() {
     let (t, _, _, _) = fixture();
     let a = app(t.path(), None);
+    let schemas = output_schemas(a.clone()).await;
     let calls = [
         ("roots", json!({})),
         (
@@ -757,6 +810,10 @@ async fn every_git_tool_is_callable_for_a_child_repository() {
             json!({"root":"projects","path_glob":"**/*.txt"}),
         ),
         ("search_text", json!({"root":"projects","pattern":"BETA"})),
+        (
+            "read_file",
+            json!({"root":"projects","path":"repo-a/hello.txt"}),
+        ),
         ("git_status", json!({"root":"projects","repo":"repo-a"})),
         ("git_refs", json!({"root":"projects","repo":"repo-a"})),
         ("git_resolve", json!({"root":"projects","repo":"repo-a"})),
@@ -793,10 +850,162 @@ async fn every_git_tool_is_callable_for_a_child_repository() {
         assert_eq!(status, 200, "{name}: {v}");
         assert!(v.get("error").is_none(), "{name}: {v}");
         assert_ne!(v["result"]["isError"], true, "{name}: {v}");
+        validate_output(&schemas, name, &v["result"]);
     }
     let(_,v)=rpc(a,json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"git_status","arguments":{"root":"projects","repo":"repo-a","command":"push"}}})).await;
     assert!(
         v.get("error").is_some() || v["result"]["isError"] == true,
         "{v}"
+    );
+}
+
+#[tokio::test]
+async fn output_schemas_cover_fragments_gaps_root_commits_and_errors() {
+    let t = TempDir::new().unwrap();
+    let p = t.path().join("repo");
+    repo(&p);
+    let long = format!("needle {}\r\n", "好".repeat(1000));
+    fs::write(p.join("long.txt"), &long).unwrap();
+    fs::write(p.join("binary.bin"), b"\0old").unwrap();
+    fs::write(p.join("deleted.txt"), "needle deleted\n").unwrap();
+    commit(&p, &format!("initial\n\n{long}"));
+    fs::write(p.join("long.txt"), format!("needle changed\n{long}")).unwrap();
+    fs::write(p.join("binary.bin"), b"\0new").unwrap();
+    commit(&p, "second");
+    fs::write(p.join("long.txt"), "needle staged\n").unwrap();
+    git(&p, &["add", "long.txt"]);
+    fs::write(p.join("long.txt"), &long).unwrap();
+    fs::remove_file(p.join("deleted.txt")).unwrap();
+    fs::write(p.join("untracked.txt"), "needle untracked\n").unwrap();
+    symlink("/outside", p.join("unreadable")).unwrap();
+    fs::create_dir(p.join("nested")).unwrap();
+    fs::write(p.join("nested/hidden.txt"), "needle\n").unwrap();
+    let a = app(t.path(), None);
+    let schemas = output_schemas(a.clone()).await;
+    let calls = [
+        (
+            "read_file",
+            json!({"root":"projects","path":"repo/long.txt"}),
+        ),
+        (
+            "list_directory",
+            json!({"root":"projects","path":"repo","depth":1}),
+        ),
+        (
+            "find_files",
+            json!({"root":"projects","path":"repo","depth":1}),
+        ),
+        (
+            "search_text",
+            json!({"root":"projects","path":"repo","pattern":"needle"}),
+        ),
+        (
+            "git_search",
+            json!({"root":"projects","repo":"repo","pattern":"needle"}),
+        ),
+        (
+            "git_read_file",
+            json!({"root":"projects","repo":"repo","path":"long.txt"}),
+        ),
+        ("git_status", json!({"root":"projects","repo":"repo"})),
+        (
+            "git_show",
+            json!({"root":"projects","repo":"repo","revision":"HEAD~1"}),
+        ),
+        ("git_show", json!({"root":"projects","repo":"repo"})),
+        ("git_log", json!({"root":"projects","repo":"repo"})),
+        (
+            "git_blame",
+            json!({"root":"projects","repo":"repo","path":"long.txt"}),
+        ),
+        (
+            "git_search_history",
+            json!({"root":"projects","repo":"repo","pattern":"needle"}),
+        ),
+        (
+            "git_diff",
+            json!({"root":"projects","repo":"repo","scope":"staged"}),
+        ),
+        (
+            "git_diff",
+            json!({"root":"projects","repo":"repo","scope":"worktree"}),
+        ),
+    ];
+    let mut seen = std::collections::BTreeSet::new();
+    for (name, mut args) in calls {
+        args["limits"] = json!({"max_bytes":2048,"max_lines":2});
+        let mut finished = false;
+        for _ in 0..200 {
+            let (status, response) = rpc(a.clone(), json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":name,"arguments":args}})).await;
+            assert_eq!(status, 200);
+            let data = validate_output(&schemas, name, &response["result"]);
+            assert!(serde_json::to_vec(&data).unwrap().len() <= 2048);
+            if data["truncated"] == true {
+                seen.insert("pagination");
+            }
+            for item in data["items"].as_array().into_iter().flatten() {
+                if item["kind"] == "not_inspected" {
+                    seen.insert("discovery_gap");
+                }
+                if item["kind"] == "not_searched" {
+                    seen.insert("search_gap");
+                }
+                if item["context_omitted"] == true {
+                    seen.insert("omitted_context");
+                }
+                if item["text_complete"] == false {
+                    seen.insert("text_fragment");
+                }
+                if item["kind"] == "patch_omitted" {
+                    seen.insert("omitted_patch");
+                }
+                if item["coverage"] == "not_searched" && item.get("detail").is_some() {
+                    seen.insert("history_gap");
+                }
+                if item["coverage"] == "not_searched" && item.get("path").is_some() {
+                    seen.insert("root_history_gap");
+                }
+                if item.get("change").is_some() && item["change"].get("kind").is_none() {
+                    seen.insert("root_change");
+                }
+                if item["worktree"] == "not_checked" && item.get("staged").is_none() {
+                    seen.insert("status_gap");
+                }
+            }
+            if data["next_cursor"].is_null() {
+                assert_eq!(data["truncated"], false);
+                finished = true;
+                break;
+            }
+            assert_eq!(data["truncated"], true);
+            args["cursor"] = data["next_cursor"].clone();
+        }
+        assert!(finished, "{name}: pagination did not terminate");
+    }
+    for expected in [
+        "pagination",
+        "discovery_gap",
+        "search_gap",
+        "omitted_context",
+        "text_fragment",
+        "omitted_patch",
+        "history_gap",
+        "root_history_gap",
+        "root_change",
+        "status_gap",
+    ] {
+        assert!(
+            seen.contains(expected),
+            "missing fixture coverage: {expected}"
+        );
+    }
+    let (_, response) = rpc(a, json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"read_file","arguments":{"root":"projects","path":"../outside"}}})).await;
+    assert_eq!(response["result"]["isError"], true);
+    assert!(response["result"].get("structuredContent").is_none());
+    assert!(
+        !response["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .is_empty()
     );
 }

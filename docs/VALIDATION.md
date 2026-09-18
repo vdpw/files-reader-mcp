@@ -1,5 +1,15 @@
 # 首版验证记录
 
+## 2026-09-18：输出 Schema
+
+- 全部 18 个工具的 `tools/list` 均包含非空 `outputSchema`，通过 JSON Schema 校验器编译；逐一调用工具，验证 `structuredContent` 符合各自 Schema，并与 `content[0].text` 解码后的 JSON 相同。
+- 边界测试验证 2 KiB / 2 条目预算下的分页、文本分段、搜索上下文省略、发现/搜索/状态缺口、二进制补丁省略，以及首次提交和后续提交的历史搜索结构。失败调用保持 `isError=true` 文本错误，不伪装成成功结构。
+- `cargo fmt --check`、`cargo clippy --all-targets --locked --offline -- -D warnings`、`cargo test --locked --offline`（26 项集成测试）及 `cargo build --release --locked --offline` 全部通过。
+- `python3 tests/smoke_http.py --binary target/release/files-reader-mcp` 通过，真实临时回环 HTTP 服务已验证 Schema 枚举、结构化/文本结果一致、CRLF 保留及路径越界拒绝。
+- 本次未重启已有服务，未检查 ChatGPT 连接界面；上述 HTTP 测试使用独立临时端口并在结束后停止。
+
+## 2026-09-17：首版
+
 验证日期：2026-09-17。环境：macOS Apple Silicon，Rust/Cargo 1.93.1，测试夹具使用 Git 2.54.0。Linux 使用相同 Unix 文件句柄实现，但本次没有在 Linux 主机运行测试。
 
 ## 结果
