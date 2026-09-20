@@ -571,7 +571,7 @@ fn validate_output(
     );
     let errors: Vec<_> = schemas[name]
         .iter_errors(data)
-        .map(|e| format!("{}: {e}", e.instance_path))
+        .map(|e| format!("{}: {e}", e.instance_path()))
         .collect();
     assert!(errors.is_empty(), "{name}: {errors:?}\n{data}");
     data.clone()

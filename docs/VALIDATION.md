@@ -1,5 +1,13 @@
 # 首版验证记录
 
+## 2026-09-20：依赖升级
+
+- 通过 crates.io 官方 API 逐项核对全部 22 个直接依赖（含开发依赖）的最新稳定版，将版本要求更新到对应版本，并刷新 `Cargo.lock`。实际跨版本升级为 `infer` 0.19.0 → 0.22.0、`sha1` 0.10.7 → 0.11.0、`similar` 2.7.0 → 3.2.0、`toml` 0.9.12 → 1.1.6、`jsonschema` 0.33.0 → 0.56.0。
+- 间接依赖更新到上游约束允许的版本；例如 `axum` 仍依赖 `matchit` 0.8.4，`infer` 仍依赖 `cfb` 0.14.0。锁文件中的包数量由 214 降至 197。
+- 验证环境为 macOS Apple Silicon、Rust/Cargo 1.98.1；保留已有的最低 Rust 1.98 要求，并同步 README。适配 `jsonschema::ValidationError::instance_path()`，按新 Clippy 要求将 UTF-16 解码的固定长度分块改用 `as_chunks::<2>()`。
+- `cargo fmt --check`、`cargo clippy --all-targets --locked --offline -- -D warnings`、`cargo test --locked --offline`（26 项集成测试）和 `cargo build --release --locked --offline` 全部通过。
+- `env -u SSLKEYLOGFILE python3 tests/smoke_http.py --binary target/release/files-reader-mcp` 通过：真实回环 HTTP 初始化、18 个工具枚举、结构化结果、原始 CRLF 和路径越界拒绝均正常。测试使用独立临时端口并在结束后停止，未重启已有常驻服务。
+
 ## 2026-09-18：输出 Schema
 
 - 全部 18 个工具的 `tools/list` 均包含非空 `outputSchema`，通过 JSON Schema 校验器编译；逐一调用工具，验证 `structuredContent` 符合各自 Schema，并与 `content[0].text` 解码后的 JSON 相同。

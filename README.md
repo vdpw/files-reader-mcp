@@ -6,7 +6,7 @@ Rust 编写的本地只读文本与 Git 阅读 MCP 服务，供支持 MCP 的 LL
 
 ## 构建与启动
 
-支持 macOS / Linux（Unix 文件描述符边界），需要 Rust 1.88+。
+支持 macOS / Linux（Unix 文件描述符边界），需要 Rust 1.98+。
 
 ```sh
 cargo build --release --locked

@@ -2,31 +2,31 @@
 name = "files-reader-mcp"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.98"
 description = "Local, bounded, read-only text and Git MCP server"
 
 [dependencies]
-anyhow = "1"
-axum = "0.8"
-flate2 = "1"
-globset = "0.4"
-hex = "0.4"
-infer = "0.19"
-regex = "1"
-quick-xml = "0.42"
-rmcp = { version = "3.4", features = ["server", "macros", "transport-streamable-http-server"] }
-rustix = { version = "1", features = ["fs"] }
-schemars = "1"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-sha1 = "0.10"
-similar = { version = "2", features = ["text", "inline"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "sync"] }
-tokio-util = "0.7"
-toml = "0.9"
+anyhow = "1.0.104"
+axum = "0.8.9"
+flate2 = "1.1.10"
+globset = "0.4.20"
+hex = "0.4.3"
+infer = "0.22.0"
+regex = "1.13.1"
+quick-xml = "0.42.0"
+rmcp = { version = "3.4.0", features = ["server", "macros", "transport-streamable-http-server"] }
+rustix = { version = "1.1.5", features = ["fs"] }
+schemars = "1.2.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha1 = "0.11.0"
+similar = { version = "3.2.0", features = ["text", "inline"] }
+tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread", "net", "signal", "sync"] }
+tokio-util = "0.7.19"
+toml = "1.1.6"
 
 [dev-dependencies]
-tempfile = "3"
-tower = { version = "0.5", features = ["util"] }
-http-body-util = "0.1"
-jsonschema = { version = "0.33", default-features = false }
+tempfile = "3.27.0"
+tower = { version = "0.5.3", features = ["util"] }
+http-body-util = "0.1.5"
+jsonschema = { version = "0.56.0", default-features = false }

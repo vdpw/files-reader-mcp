@@ -32,12 +32,14 @@ pub fn decode(path: &str, data: &[u8]) -> Result<Text> {
             ensure!(data.len().is_multiple_of(2), "INVALID_UTF16");
             let little = data[0] == 0xff;
             let units: Vec<u16> = data[2..]
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|b| {
                     if little {
-                        u16::from_le_bytes([b[0], b[1]])
+                        u16::from_le_bytes(*b)
                     } else {
-                        u16::from_be_bytes([b[0], b[1]])
+                        u16::from_be_bytes(*b)
                     }
                 })
                 .collect();
